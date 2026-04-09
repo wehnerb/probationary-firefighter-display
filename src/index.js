@@ -145,9 +145,13 @@ export default {
       const active = firefighters
         .filter(ff => isActive(ff.hireDate, todayStr))
         .sort((a, b) => {
-          if (a.hireDate !== b.hireDate) return a.hireDate.localeCompare(b.hireDate);
-          return a.name.localeCompare(b.name);
-        });
+  if (a.hireDate !== b.hireDate) return a.hireDate.localeCompare(b.hireDate);
+  // Within the same hire date, sort by badge number numerically.
+  // Firefighters with no badge number sort after those with one.
+  const badgeA = a.badge ? parseInt(a.badge, 10) : Infinity;
+  const badgeB = b.badge ? parseInt(b.badge, 10) : Infinity;
+  return badgeA - badgeB;
+});
 
       if (active.length === 0) {
         return renderNoActivePage(layout);
