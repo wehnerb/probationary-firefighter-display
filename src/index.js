@@ -161,7 +161,7 @@ export default {
 
       // Look up the firefighter's photo in the Drive map (case-insensitive).
       // A missing or unmatched photo filename is logged but not fatal — the
-      // page renders normally without a photo.
+      // page renders with a silhouette placeholder instead.
       let photoData = null;
       if (firefighter.photo) {
         const fileId = photoMap.get(firefighter.photo.toLowerCase());
@@ -574,8 +574,8 @@ async function buildPhotoMap(env, accessToken) {
 
 // Fetches a Drive file's binary content and returns it as a base64 data URI
 // for inline embedding. The display browser never contacts Drive directly.
-// Returns null on any failure so the page renders without a photo rather than
-// crashing the entire Worker.
+// Returns null on any failure so the page renders with a silhouette placeholder
+// rather than crashing the entire Worker.
 async function fetchPhotoData(fileId, accessToken) {
   try {
     const res = await fetch(
@@ -660,6 +660,13 @@ function escapeHtml(str) {
 //   5. Larger gap
 //   6. Q&A pairs distributed evenly across remaining vertical space
 //
+// If no photo is available, a generic person silhouette SVG is shown in the
+// photo column so the layout remains consistent regardless of photo status.
+//
+// outerPad applies equal spacing between the display edges and all content,
+// including the space between the photo and the left/top/bottom edges.
+// The full-layout title bar spans the full width above the outer padding.
+//
 // Background is transparent so the display system's texture shows through.
 // String concatenation used throughout to prevent smart-quote corruption when
 // the file is edited in GitHub's browser editor.
@@ -679,26 +686,33 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
   const qaFontSize    = Math.floor(minDim * 0.026); // Q&A question/answer pairs
   const titleFontSize = Math.floor(minDim * 0.034); // full layout title bar only
 
+  // --- Outer padding ---
+  // Applied as a margin on the content area on all four sides, creating a
+  // consistent gap between the display edges and all content. This includes
+  // the gap between the photo and the left/top/bottom edges of the display.
+  // The full-layout title bar spans the full width outside this padding.
+  const outerPad = Math.floor(minDim * 0.022); // e.g. 720px * 0.022 = ~16px
+
   // --- Title bar geometry (full layout only) ---
+  // Title bar spans full width above the outer-padded content area.
   const titleBarHeight = showTitle ? Math.floor(height * 0.072) : 0; // ~77px at 1075px
 
   // --- Content area geometry ---
-  const contentHeight = height - titleBarHeight;
+  // Subtract outer padding from all sides so the photo and info panel sit
+  // within the padded region. The title bar height is excluded from the top.
+  const availableWidth  = width  - 2 * outerPad;
+  const availableHeight = height - titleBarHeight - 2 * outerPad;
 
   // Photo and info dimensions differ by layout family.
   // Wide/full: horizontal split. Split/tri: vertical stack.
-  const photoWidth  = isWideFamily ? Math.floor(width * 0.42) : width;
-  const photoHeight = isWideFamily ? contentHeight             : Math.floor(contentHeight * 0.38);
-  const infoWidth   = isWideFamily ? (width - photoWidth)      : width;
-  const infoHeight  = isWideFamily ? contentHeight             : (contentHeight - photoHeight);
+  const photoWidth  = isWideFamily ? Math.floor(availableWidth * 0.42) : availableWidth;
+  const photoHeight = isWideFamily ? availableHeight                    : Math.floor(availableHeight * 0.38);
+  const infoWidth   = isWideFamily ? (availableWidth - photoWidth)      : availableWidth;
+  const infoHeight  = isWideFamily ? availableHeight                    : (availableHeight - photoHeight);
 
   // Padding inside the info panel, proportional to its own dimensions.
   const padH = Math.floor(infoWidth  * 0.05);
   const padV = Math.floor(infoHeight * 0.05);
-
-  // Padding around the photo, creating a gap between the image edge and the
-  // surrounding display. Proportional to the smaller layout dimension.
-  const photoPad = Math.floor(minDim * 0.018); // e.g. 720px * 0.018 = ~13px
 
   // --- Fixed field rows ---
   // Displayed in a consistent order: Hire Date → Shift → Badge → Hometown.
@@ -753,11 +767,18 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
   }
 
   // --- Photo block ---
-  // If no photo is available the left column renders as a transparent area.
+  // If no photo is available, a generic person silhouette SVG is shown so
+  // the layout remains visually consistent. The silhouette uses a dark
+  // background with a neutral gray figure matching the display aesthetic.
   const photoHtml = photoData
     ? '<img src="' + photoData.dataUri + '" alt="Photo of ' +
         escapeHtml(firefighter.name) + '">'
-    : '<div class="no-photo"></div>';
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
+        'style="width:100%;height:100%;display:block;">' +
+        '<rect width="200" height="260" fill="#1a1a1a"/>' +
+        '<circle cx="100" cy="82" r="46" fill="#555"/>' +
+        '<path d="M0,260 C0,165 38,145 100,140 C162,145 200,165 200,260 Z" fill="#555"/>' +
+        '</svg>';
 
   // --- Title bar (full layout only) ---
   const titleHtml = showTitle
@@ -777,7 +798,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  font-family: Arial, Helvetica, sans-serif;' +
     '}' +
 
-    // Title bar — full layout only
+    // Title bar — full layout only; spans the full width outside outer padding
     '.title-bar {' +
     '  width: 100%;' +
     '  height: '                + titleBarHeight + 'px;' +
@@ -792,33 +813,36 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  color: #ffffff;' +
     '}' +
 
-    // Content row/column container
+    // Outer padding wrapper — creates a consistent gap between display edges
+    // and all content on all four sides, including around the photo
+    '.outer {' +
+    '  padding: ' + outerPad + 'px;' +
+    '  width: '   + width    + 'px;' +
+    '  height: '  + (height - titleBarHeight) + 'px;' +
+    '}' +
+
+    // Content row/column container — sized to the available area after padding
     '.content {' +
     '  display: flex;' +
     '  flex-direction: ' + (isWideFamily ? 'row' : 'column') + ';' +
-    '  width: '          + width         + 'px;' +
-    '  height: '         + contentHeight + 'px;' +
+    '  width: '          + availableWidth  + 'px;' +
+    '  height: '         + availableHeight + 'px;' +
     '}' +
 
-    // Photo column — padding creates a gap around the image on all sides
+    // Photo column — no internal padding; outer padding handles edge spacing
     '.photo-col {' +
     '  flex: 0 0 ' + photoWidth  + 'px;' +
     '  width: '    + photoWidth  + 'px;' +
     '  height: '   + photoHeight + 'px;' +
-    '  padding: '  + photoPad   + 'px;' +
     '  overflow: hidden;' +
     '}' +
-    // Image fills the padded area; anchored to top so faces are not cropped
+    // Image fills the column; anchored to top so faces are not cropped
     '.photo-col img {' +
     '  width: 100%;' +
     '  height: 100%;' +
     '  object-fit: cover;' +
     '  object-position: center top;' +
     '  display: block;' +
-    '}' +
-    '.no-photo {' +
-    '  width: 100%;' +
-    '  height: 100%;' +
     '}' +
 
     // Info panel — flex column so .qa-section can grow to fill remaining space
@@ -834,7 +858,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 
     // Firefighter name
     '.name {' +
-    '  font-size: '    + nameFontSize + 'px;' +
+    '  font-size: '     + nameFontSize + 'px;' +
     '  font-weight: 700;' +
     '  color: #ffffff;' +
     '  line-height: 1.15;' +
@@ -844,7 +868,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 
     // Rank / title
     '.rank {' +
-    '  font-size: '    + rankFontSize + 'px;' +
+    '  font-size: '     + rankFontSize + 'px;' +
     '  font-weight: 400;' +
     '  color: #cccccc;' +
     '  margin-bottom: ' + Math.floor(rankFontSize * 0.45) + 'px;' +
@@ -863,7 +887,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 
     // Fixed field rows (Hire Date, Shift, Badge, Hometown)
     '.field-row {' +
-    '  font-size: '    + fieldFontSize + 'px;' +
+    '  font-size: '     + fieldFontSize + 'px;' +
     '  line-height: 1.5;' +
     '  margin-bottom: ' + Math.floor(fieldFontSize * 0.12) + 'px;' +
     '  flex-shrink: 0;' +
@@ -879,8 +903,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 
     // Q&A section — grows to fill all remaining vertical space, then
     // distributes questions evenly within that space using space-evenly.
-    // This means fewer questions get larger gaps, and more questions get
-    // smaller gaps, always filling the panel naturally.
+    // Fewer questions get larger gaps; more questions get smaller gaps.
     '.qa-section {' +
     '  flex: 1;' +
     '  display: flex;' +
@@ -890,9 +913,9 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  margin-top: ' + Math.floor(fieldFontSize * 1.2) + 'px;' +
     '}' +
 
-    // Q&A pair rows — no fixed margin needed; spacing handled by space-evenly
+    // Q&A pair rows — no fixed margin; spacing handled by space-evenly
     '.qa-row {' +
-    '  font-size: '    + qaFontSize + 'px;' +
+    '  font-size: '  + qaFontSize + 'px;' +
     '  line-height: 1.4;' +
     '}' +
     '.qa-label {' +
@@ -917,18 +940,20 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '</head>' +
     '<body>' +
     titleHtml +
-    '<div class="content">' +
-      '<div class="photo-col">' + photoHtml + '</div>' +
-      '<div class="info-col">' +
-        '<div class="name">' + escapeHtml(firefighter.name) + '</div>' +
-        (firefighter.rank
-          ? '<div class="rank">' + escapeHtml(firefighter.rank) + '</div>'
-          : '') +
-        '<div class="divider"></div>' +
-        fixedFieldsHtml +
-        (qaHtml
-          ? '<div class="qa-section">' + qaHtml + '</div>'
-          : '') +
+    '<div class="outer">' +
+      '<div class="content">' +
+        '<div class="photo-col">' + photoHtml + '</div>' +
+        '<div class="info-col">' +
+          '<div class="name">' + escapeHtml(firefighter.name) + '</div>' +
+          (firefighter.rank
+            ? '<div class="rank">' + escapeHtml(firefighter.rank) + '</div>'
+            : '') +
+          '<div class="divider"></div>' +
+          fixedFieldsHtml +
+          (qaHtml
+            ? '<div class="qa-section">' + qaHtml + '</div>'
+            : '') +
+        '</div>' +
       '</div>' +
     '</div>' +
     '</body>' +
