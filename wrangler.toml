@@ -1,11 +1,13 @@
-name = "probationary-firefighter-display-staging"
+name = "probationary-firefighter-display"
 main = "src/index.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-01-01"
 
-# All sensitive values are stored as Cloudflare Worker secrets.
-# They are never committed to source code or listed as [vars] here.
-# Required secrets (add via Cloudflare dashboard and deploy.yml):
-#   GOOGLE_SERVICE_ACCOUNT_EMAIL
-#   GOOGLE_PRIVATE_KEY
-#   GOOGLE_SHEET_ID
-#   GOOGLE_DRIVE_FOLDER_ID
+# ── Production environment (main branch deploys here) ──────────────────────
+# Resolves to: probationary-firefighter-display.bwehner.workers.dev
+[env.production]
+name = "probationary-firefighter-display"
+
+# ── Staging environment (staging branch deploys here) ──────────────────────
+# Resolves to: probationary-firefighter-display-staging.bwehner.workers.dev
+[env.staging]
+name = "probationary-firefighter-display-staging"
