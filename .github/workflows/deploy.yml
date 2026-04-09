@@ -1,29 +1,36 @@
-name: Deploy Worker
+# ── Deploy workflow for probationary-firefighter-display ─────────────────────
+# Pushing to the staging branch deploys to the staging Worker
+# Pushing to the main branch deploys to the production Worker
+
+name: Deploy to Cloudflare Workers
 
 on:
   push:
     branches:
       - main
+      - staging
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy to Cloudflare Workers
+    name: Deploy
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy with Wrangler
+      # ── Deploy to staging Worker when pushing to staging branch ────────────
+      - name: Deploy to Staging
+        if: github.ref == 'refs/heads/staging'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          secrets: |
-            GOOGLE_SERVICE_ACCOUNT_EMAIL
-            GOOGLE_PRIVATE_KEY
-            GOOGLE_SHEET_ID
-            GOOGLE_DRIVE_FOLDER_ID
-        env:
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          environment: staging
+
+      # ── Deploy to production Worker when pushing to main branch ────────────
+      - name: Deploy to Production
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          environment: production
