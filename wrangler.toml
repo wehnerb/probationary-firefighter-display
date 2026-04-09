@@ -1,0 +1,11 @@
+name = "probationary-firefighter-display-staging"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# All sensitive values are stored as Cloudflare Worker secrets.
+# They are never committed to source code or listed as [vars] here.
+# Required secrets (add via Cloudflare dashboard and deploy.yml):
+#   GOOGLE_SERVICE_ACCOUNT_EMAIL
+#   GOOGLE_PRIVATE_KEY
+#   GOOGLE_SHEET_ID
+#   GOOGLE_DRIVE_FOLDER_ID
