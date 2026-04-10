@@ -228,12 +228,46 @@ export default {
 // Uses Intl.DateTimeFormat to handle DST transitions correctly.
 // The en-CA locale produces YYYY-MM-DD format natively.
 function getTodayString() {
+  const now   = new Date();
+  const parts = {};
+
+  for (const part of new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year:     'numeric',
+    month:    '2-digit',
+    day:      '2-digit',
+    hour:     'numeric',
+    minute:   'numeric',
+    hour12:   false,
+  }).formatToParts(now)) {
+    if (part.type !== 'literal') {
+      parts[part.type] = parseInt(part.value, 10);
+    }
+  }
+
+  // If before ROTATION_TIME, use yesterday's date so the rotation
+  // doesn't advance until 7:30 AM Central rather than at midnight.
+  const secondsSinceMidnight = parts.hour * 3600 + parts.minute * 60;
+  const rotationSecondOfDay  = ROTATION_TIME.hour * 3600 + ROTATION_TIME.minute * 60;
+
+  if (secondsSinceMidnight < rotationSecondOfDay) {
+    // Before 7:30 AM — step back one day
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago',
+      year:     'numeric',
+      month:    '2-digit',
+      day:      '2-digit',
+    }).format(yesterday);
+  }
+
+  // 7:30 AM or later — use today's date
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Chicago',
     year:     'numeric',
     month:    '2-digit',
     day:      '2-digit',
-  }).format(new Date());
+  }).format(now);
 }
 
 // Returns the number of whole calendar days elapsed since ROTATION_ANCHOR
