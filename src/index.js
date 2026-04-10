@@ -83,6 +83,11 @@ const FIXED_COLUMNS = new Set(['name', 'badge', 'hire date', 'shift', 'rank', 'p
 // FFD brand red — used for the title bar (full layout only) and accent divider.
 const ACCENT_COLOR = '#C8102E';
 
+// Dark background color used when ?bg=dark is specified. Approximates the
+// dark charcoal texture of the station display system background, making
+// text and layout easier to evaluate when testing in a browser.
+const DARK_BG_COLOR = '#111111';
+
 // Name of the data tab in the Google Sheet.
 // Update this constant if the tab is ever renamed.
 const SHEET_TAB_NAME = 'Firefighters';
@@ -118,6 +123,11 @@ export default {
     const layoutKey   = (layoutParam in LAYOUTS) ? layoutParam : DEFAULT_LAYOUT;
     const layout      = LAYOUTS[layoutKey];
 
+    // ?bg=dark renders a dark background instead of transparent. Intended for
+    // browser-based testing where the display system background is not present.
+    // Production display URLs should never include this parameter.
+    const darkBg = url.searchParams.get('bg') === 'dark';
+
     try {
       // Get today's date string in America/Chicago time (YYYY-MM-DD).
       // All rotation and active-status logic uses this value so DST is
@@ -139,22 +149,22 @@ export default {
       ]);
 
       // Filter to firefighters hired within the past HIRE_ACTIVE_DAYS, then
-      // sort by hire date ascending, then name ascending. A consistent stable
-      // sort ensures the same firefighter always occupies the same rotation
-      // slot on a given day regardless of when the Worker runs.
+      // sort by hire date ascending, then badge number ascending. A consistent
+      // stable sort ensures the same firefighter always occupies the same
+      // rotation slot on a given day regardless of when the Worker runs.
       const active = firefighters
         .filter(ff => isActive(ff.hireDate, todayStr))
         .sort((a, b) => {
-  if (a.hireDate !== b.hireDate) return a.hireDate.localeCompare(b.hireDate);
-  // Within the same hire date, sort by badge number numerically.
-  // Firefighters with no badge number sort after those with one.
-  const badgeA = a.badge ? parseInt(a.badge, 10) : Infinity;
-  const badgeB = b.badge ? parseInt(b.badge, 10) : Infinity;
-  return badgeA - badgeB;
-});
+          if (a.hireDate !== b.hireDate) return a.hireDate.localeCompare(b.hireDate);
+          // Within the same hire date, sort by badge number numerically.
+          // Firefighters with no badge number sort after those with one.
+          const badgeA = a.badge ? parseInt(a.badge, 10) : Infinity;
+          const badgeB = b.badge ? parseInt(b.badge, 10) : Infinity;
+          return badgeA - badgeB;
+        });
 
       if (active.length === 0) {
-        return renderNoActivePage(layout);
+        return renderNoActivePage(layout, darkBg);
       }
 
       // Select the current firefighter from the active list using the rotation
@@ -188,7 +198,7 @@ export default {
       );
 
       const html = buildFirefighterPage(
-        firefighter, photoData, layout, layoutKey, refreshSeconds
+        firefighter, photoData, layout, layoutKey, refreshSeconds, darkBg
       );
 
       return new Response(html, {
@@ -211,7 +221,7 @@ export default {
       // Log the full error server-side but return only a generic message to
       // the client to avoid leaking implementation details.
       console.error('Worker unhandled error:', err);
-      return renderErrorPage('A system error occurred. Retrying shortly.', layout);
+      return renderErrorPage('A system error occurred. Retrying shortly.', layout, darkBg);
     }
   },
 };
@@ -225,8 +235,8 @@ export default {
 // both Workers. Do not modify the logic without also updating the other Worker.
 
 // Returns today's date string (YYYY-MM-DD) in America/Chicago time.
-// Uses Intl.DateTimeFormat to handle DST transitions correctly.
-// The en-CA locale produces YYYY-MM-DD format natively.
+// Before ROTATION_TIME (7:30 AM Central), returns yesterday's date so the
+// rotation doesn't advance until 7:30 AM rather than at midnight.
 function getTodayString() {
   const now   = new Date();
   const parts = {};
@@ -705,10 +715,11 @@ function escapeHtml(str) {
 // including the space between the photo and the left/top/bottom edges.
 // The full-layout title bar spans the full width above the outer padding.
 //
-// Background is transparent so the display system's texture shows through.
+// darkBg: when true, renders DARK_BG_COLOR instead of transparent. Used for
+// browser-based testing where the display system background is not present.
 // String concatenation used throughout to prevent smart-quote corruption when
 // the file is edited in GitHub's browser editor.
-function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refreshSeconds) {
+function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refreshSeconds, darkBg) {
   const { width, height } = layout;
 
   const isWideFamily = (layoutKey === 'wide' || layoutKey === 'full');
@@ -827,12 +838,13 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
   const css =
     '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
 
-    // Transparent background so the display system texture shows through.
+    // Background: transparent in production so the display system texture shows
+    // through. Dark (#111111) when ?bg=dark is set for browser-based testing.
     'html, body {' +
     '  width: '            + width  + 'px;' +
     '  height: '           + height + 'px;' +
     '  overflow: hidden;' +
-    '  background: transparent;' +
+    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '}' +
 
@@ -1002,7 +1014,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 // Renders a page when no firefighters are currently within their active year.
 // Uses a short retry interval since this is an unusual state that should
 // resolve as soon as new hires are entered in the sheet.
-function renderNoActivePage(layout) {
+function renderNoActivePage(layout, darkBg) {
   const { width, height } = layout;
   const fontSize = Math.floor(Math.min(width, height) * 0.028);
 
@@ -1018,7 +1030,7 @@ function renderNoActivePage(layout) {
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
-    '  background: transparent;' +
+    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
     '  color: #cccccc;' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
@@ -1044,7 +1056,7 @@ function renderNoActivePage(layout) {
 
 // Renders a generic error page with a short retry interval.
 // The message is HTML-escaped before insertion.
-function renderErrorPage(message, layout) {
+function renderErrorPage(message, layout, darkBg) {
   const { width, height } = layout;
   const fontSize    = Math.floor(Math.min(width, height) * 0.022);
   const safeMessage = escapeHtml(message);
@@ -1061,7 +1073,7 @@ function renderErrorPage(message, layout) {
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
-    '  background: transparent;' +
+    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
     '  color: #cccccc;' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
