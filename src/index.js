@@ -164,7 +164,7 @@ export default {
         });
 
       if (active.length === 0) {
-        return renderNoActivePage(layout, darkBg);
+        return renderNoActivePage(layout, layoutKey, darkBg);
       }
 
       // Select the current firefighter from the active list using the rotation
@@ -221,7 +221,7 @@ export default {
       // Log the full error server-side but return only a generic message to
       // the client to avoid leaking implementation details.
       console.error('Worker unhandled error:', err);
-      return renderErrorPage('A system error occurred. Retrying shortly.', layout, darkBg);
+      return renderErrorPage('A system error occurred. Retrying shortly.', layout, layoutKey, darkBg);
     }
   },
 };
@@ -844,7 +844,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  width: '            + width  + 'px;' +
     '  height: '           + height + 'px;' +
     '  overflow: hidden;' +
-    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
+    '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '}' +
 
@@ -1014,7 +1014,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 // Renders a page when no firefighters are currently within their active year.
 // Uses a short retry interval since this is an unusual state that should
 // resolve as soon as new hires are entered in the sheet.
-function renderNoActivePage(layout, darkBg) {
+function renderNoActivePage(layout, layoutKey, darkBg) {
   const { width, height } = layout;
   const fontSize = Math.floor(Math.min(width, height) * 0.028);
 
@@ -1030,7 +1030,7 @@ function renderNoActivePage(layout, darkBg) {
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
-    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
+    '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
     '  color: #cccccc;' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
@@ -1056,7 +1056,7 @@ function renderNoActivePage(layout, darkBg) {
 
 // Renders a generic error page with a short retry interval.
 // The message is HTML-escaped before insertion.
-function renderErrorPage(message, layout, darkBg) {
+function renderErrorPage(message, layout, layoutKey, darkBg) {
   const { width, height } = layout;
   const fontSize    = Math.floor(Math.min(width, height) * 0.022);
   const safeMessage = escapeHtml(message);
@@ -1073,7 +1073,7 @@ function renderErrorPage(message, layout, darkBg) {
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
-    '  background: ' + (darkBg ? DARK_BG_COLOR : 'transparent') + ';' +
+    '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
     '  color: #cccccc;' +
     '  font-family: Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
