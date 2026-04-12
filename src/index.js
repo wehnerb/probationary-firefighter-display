@@ -845,7 +845,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  height: '           + height + 'px;' +
     '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  font-family: Arial, Helvetica, sans-serif;' +
+    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
     '}' +
 
     // Title bar — full layout only; spans the full width outside outer padding
@@ -920,7 +920,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '.rank {' +
     '  font-size: '     + rankFontSize + 'px;' +
     '  font-weight: 400;' +
-    '  color: #cccccc;' +
+    '  color: rgba(255,255,255,0.75);' +
     '  margin-bottom: ' + Math.floor(rankFontSize * 0.45) + 'px;' +
     '  flex-shrink: 0;' +
     '}' +
@@ -948,7 +948,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '}' +
     '.field-value {' +
     '  font-weight: 400;' +
-    '  color: #dddddd;' +
+    '  color: rgba(255,255,255,0.75);' +
     '}' +
 
     // Q&A section — grows to fill all remaining vertical space, then
@@ -974,7 +974,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '}' +
     '.qa-value {' +
     '  font-weight: 400;' +
-    '  color: #dddddd;' +
+    '  color: rgba(255,255,255,0.75);' +
     '}';
 
   // --- Assemble final HTML ---
@@ -1031,8 +1031,8 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  color: #cccccc;' +
-    '  font-family: Arial, Helvetica, sans-serif;' +
+    '  color: rgba(255,255,255,0.68);' +
+    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
     '  display: flex;' +
     '  align-items: center;' +
@@ -1074,8 +1074,8 @@ function renderErrorPage(message, layout, layoutKey, darkBg) {
     '  height: '    + height + 'px;' +
     '  margin: 0; padding: 0; overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  color: #cccccc;' +
-    '  font-family: Arial, Helvetica, sans-serif;' +
+    '  color: rgba(255,255,255,0.68);' +
+    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
     '  font-size: ' + fontSize + 'px;' +
     '  display: flex;' +
     '  align-items: center;' +
