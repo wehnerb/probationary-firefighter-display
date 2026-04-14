@@ -103,6 +103,10 @@ const ERROR_RETRY_SECONDS = 60;
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
 
+// Workers Cache API version. Increment this integer to immediately invalidate
+// all cached pages — useful after code changes that affect the rendered output.
+const CACHE_VERSION = 1;
+
 
 // =============================================================================
 // MAIN WORKER ENTRY POINT
@@ -128,12 +132,36 @@ export default {
     // Production display URLs should never include this parameter.
     const darkBg = url.searchParams.get('bg') === 'dark';
 
-    try {
-      // Get today's date string in America/Chicago time (YYYY-MM-DD).
-      // All rotation and active-status logic uses this value so DST is
-      // handled consistently across the entire request.
-      const todayStr = getTodayString();
+    // Compute the rotation block index synchronously before the cache check.
+    // The block index is stable for ROTATION_DAYS days at a time and serves
+    // as the cache key discriminator — when it changes, the old cache entry
+    // is naturally bypassed and a fresh page is generated and cached.
+    const todayStr   = getTodayString();
+    const blockIndex = getBlockIndex(todayStr);
 
+    // --- Workers Cache API ---
+    // The rendered page is expensive to generate: JWT signing, OAuth token
+    // exchange, Sheets fetch, Drive folder listing, and photo base64 encoding
+    // all occur on every cache miss. Caching prevents these operations from
+    // running on every display screen request.
+    //
+    // Cache key includes CACHE_VERSION (for manual invalidation), layoutKey
+    // (each layout renders differently), and blockIndex (rotates every 3 days).
+    // ?bg=dark requests bypass the cache entirely — they are for browser-based
+    // testing only and must not pollute the production cache.
+    const cache    = caches.default;
+    const cacheKey = new Request(
+      'https://prob-display-cache.internal/v' + CACHE_VERSION +
+      '/' + layoutKey + '/' + blockIndex,
+      { method: 'GET' }
+    );
+
+    if (!darkBg) {
+      const cached = await cache.match(cacheKey);
+      if (cached) return cached;
+    }
+
+    try {
       // Obtain a Google OAuth2 access token. The drive.readonly scope covers
       // both the Google Sheets API and the Google Drive API so a single token
       // handles all upstream requests.
@@ -168,9 +196,8 @@ export default {
       }
 
       // Select the current firefighter from the active list using the rotation
-      // block index. Modulo wraps the index after the last firefighter so the
-      // list loops continuously.
-      const blockIndex  = getBlockIndex(todayStr);
+      // block index computed before the cache check. Modulo wraps the index
+      // after the last firefighter so the list loops continuously.
       const firefighter = active[blockIndex % active.length];
 
       // Look up the firefighter's photo in the Drive map (case-insensitive).
@@ -201,14 +228,13 @@ export default {
         firefighter, photoData, layout, layoutKey, refreshSeconds, darkBg
       );
 
-      return new Response(html, {
+      const response = new Response(html, {
         status: 200,
         headers: {
           'Content-Type':           'text/html; charset=utf-8',
-          // no-store prevents the browser from caching the HTML page.
+          // no-store prevents the browser from caching the HTML page itself.
           // The meta-refresh interval controls how often the display reloads.
           'Cache-Control':          'no-store',
-          // Prevent MIME-type sniffing attacks.
           'X-Content-Type-Options': 'nosniff',
           // NOTE: X-Frame-Options is intentionally NOT set here.
           // This Worker is embedded as a full-screen iframe by the display
@@ -217,11 +243,30 @@ export default {
         },
       });
 
+      // Store a separately-headered copy in the Workers Cache API.
+      // The TTL is 3 days — long enough to cover an entire rotation block.
+      // The block index in the cache key naturally invalidates the entry when
+      // the rotation advances so no explicit purge is ever required.
+      // ?bg=dark requests are never cached.
+      if (!darkBg) {
+        const responseToCache = new Response(html, {
+          status: 200,
+          headers: {
+            'Content-Type':           'text/html; charset=utf-8',
+            'Cache-Control':          'public, max-age=' + (3 * 24 * 3600),
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+        await cache.put(cacheKey, responseToCache);
+      }
+
+      return response;
+
     } catch (err) {
       // Log the full error server-side but return only a generic message to
       // the client to avoid leaking implementation details.
       console.error('Worker unhandled error:', err);
-      return renderErrorPage('A system error occurred. Retrying shortly.', layout, layoutKey, darkBg);
+      return renderErrorPage('SYSTEM ERROR', 'Retrying shortly', layout, layoutKey, darkBg);
     }
   },
 };
@@ -1012,11 +1057,12 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
 }
 
 // Renders a page when no firefighters are currently within their active year.
-// Uses a short retry interval since this is an unusual state that should
-// resolve as soon as new hires are entered in the sheet.
+// Not cached — this is an unusual state that should resolve as soon as new
+// hires are entered in the sheet, so it rechecks on every display refresh.
 function renderNoActivePage(layout, layoutKey, darkBg) {
   const { width, height } = layout;
-  const fontSize = Math.floor(Math.min(width, height) * 0.028);
+  const titleFont = Math.floor(Math.min(width, height) * 0.030);
+  const subFont   = Math.floor(Math.min(width, height) * 0.020);
 
   return new Response(
     '<!DOCTYPE html>' +
@@ -1026,22 +1072,26 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
     '<meta http-equiv="refresh" content="' + ERROR_RETRY_SECONDS + '">' +
     '<title>Probationary Firefighters</title>' +
     '<style>' +
+    '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
     'html, body {' +
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
-    '  margin: 0; padding: 0; overflow: hidden;' +
+    '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  color: rgba(255,255,255,0.68);' +
     '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
-    '  font-size: ' + fontSize + 'px;' +
-    '  display: flex;' +
-    '  align-items: center;' +
-    '  justify-content: center;' +
-    '  text-align: center;' +
+    '  display: flex; align-items: center; justify-content: center;' +
     '}' +
+    '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.55); }' +
     '</style>' +
     '</head>' +
-    '<body>No active probationary firefighters.</body>' +
+    '<body>' +
+    '<div class="err-wrap">' +
+    '<div class="err-title">NO ACTIVE PROBATIONARY FIREFIGHTERS</div>' +
+    '<div class="err-sub">Check back when new hires are added to the roster</div>' +
+    '</div>' +
+    '</body>' +
     '</html>',
     {
       status: 200,
@@ -1055,11 +1105,11 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
 }
 
 // Renders a generic error page with a short retry interval.
-// The message is HTML-escaped before insertion.
-function renderErrorPage(message, layout, layoutKey, darkBg) {
+// Not cached — error states should recheck on every display refresh.
+function renderErrorPage(title, subtitle, layout, layoutKey, darkBg) {
   const { width, height } = layout;
-  const fontSize    = Math.floor(Math.min(width, height) * 0.022);
-  const safeMessage = escapeHtml(message);
+  const titleFont = Math.floor(Math.min(width, height) * 0.030);
+  const subFont   = Math.floor(Math.min(width, height) * 0.020);
 
   return new Response(
     '<!DOCTYPE html>' +
@@ -1069,22 +1119,26 @@ function renderErrorPage(message, layout, layoutKey, darkBg) {
     '<meta http-equiv="refresh" content="' + ERROR_RETRY_SECONDS + '">' +
     '<title>Probationary Firefighters</title>' +
     '<style>' +
+    '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
     'html, body {' +
     '  width: '     + width  + 'px;' +
     '  height: '    + height + 'px;' +
-    '  margin: 0; padding: 0; overflow: hidden;' +
+    '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  color: rgba(255,255,255,0.68);' +
     '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
-    '  font-size: ' + fontSize + 'px;' +
-    '  display: flex;' +
-    '  align-items: center;' +
-    '  justify-content: center;' +
-    '  text-align: center;' +
+    '  display: flex; align-items: center; justify-content: center;' +
     '}' +
+    '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.55); }' +
     '</style>' +
     '</head>' +
-    '<body>' + safeMessage + '</body>' +
+    '<body>' +
+    '<div class="err-wrap">' +
+    '<div class="err-title">' + escapeHtml(title)    + '</div>' +
+    '<div class="err-sub">'   + escapeHtml(subtitle) + '</div>' +
+    '</div>' +
+    '</body>' +
     '</html>',
     {
       status: 200,
