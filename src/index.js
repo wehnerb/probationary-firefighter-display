@@ -1082,8 +1082,8 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
     '  display: flex; align-items: center; justify-content: center;' +
     '}' +
     '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
-    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.06em; }' +
-    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.55); }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: #C8102E; letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.92); }' +
     '</style>' +
     '</head>' +
     '<body>' +
@@ -1129,8 +1129,8 @@ function renderErrorPage(title, subtitle, layout, layoutKey, darkBg) {
     '  display: flex; align-items: center; justify-content: center;' +
     '}' +
     '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
-    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.06em; }' +
-    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.55); }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: #C8102E; letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.92); }' +
     '</style>' +
     '</head>' +
     '<body>' +
