@@ -266,7 +266,7 @@ export default {
       // Log the full error server-side but return only a generic message to
       // the client to avoid leaking implementation details.
       console.error('Worker unhandled error:', err);
-      return renderErrorPage('SYSTEM ERROR', 'Retrying shortly', layout, layoutKey, darkBg);
+      return renderErrorPage('DISPLAY UNAVAILABLE', 'Retrying shortly', layout, layoutKey, darkBg);
     }
   },
 };
