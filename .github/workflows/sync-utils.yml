@@ -1,0 +1,78 @@
+name: Sync shared utils
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [utils-updated]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: staging
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout utils repo
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: wehnerb/ffd-station-display-utils
+          ref: staging
+          path: .utils-source
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat .utils-source/VERSION)" >> $GITHUB_OUTPUT
+
+      - name: Copy utils into src/shared
+        run: |
+          mkdir -p src/shared
+          rm -rf src/shared/*
+          cp -r .utils-source/utils/. src/shared/
+          cp .utils-source/VERSION src/shared/VERSION
+          rm -rf .utils-source
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exit if no changes
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "Already up to date with v${{ steps.version.outputs.version }}. No PR needed."
+
+      - name: Commit changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b sync-utils-v${{ steps.version.outputs.version }}
+          git add src/shared/
+          git commit -m "chore: sync shared utils to v${{ steps.version.outputs.version }}"
+
+      - name: Push branch
+        if: steps.changes.outputs.changed == 'true'
+        run: git push origin sync-utils-v${{ steps.version.outputs.version }} --force
+
+      - name: Open PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base staging \
+            --head sync-utils-v${{ steps.version.outputs.version }} \
+            --title "chore: sync shared utils to v${{ steps.version.outputs.version }}" \
+            --body "Automated sync from ffd-station-display-utils v${{ steps.version.outputs.version }}. Review the diff, test on staging, and merge when ready." \
+            --repo wehnerb/probationary-firefighter-display
