@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from './shared/fetch-helpers.js';
+
 // =============================================================================
 // probationary-firefighter-display — Cloudflare Worker
 // =============================================================================
@@ -464,11 +466,11 @@ async function getAccessToken(email, rawPrivateKey) {
   const jwt = signingInput + '.' + arrayBufferToBase64url(signatureBuf);
 
   // Step 4 — Exchange the signed JWT for a short-lived access token.
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+  const tokenRes = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body:    'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt,
-  });
+  }, 10000);
 
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
@@ -517,10 +519,10 @@ async function fetchFirefighters(env, accessToken) {
     encodeURIComponent(SHEET_TAB_NAME) +
     '?majorDimension=ROWS';
 
-  const res = await fetch(sheetUrl, {
+  const res = await fetchWithTimeout(sheetUrl, {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     cf: { cacheTtl: 0 }, // always fetch fresh data on each Worker invocation
-  });
+  }, 8000);
 
   if (!res.ok) {
     console.error('Sheets API error (' + res.status + '): ' + await res.text());
@@ -641,10 +643,10 @@ async function buildPhotoMap(env, accessToken) {
     '&fields=files(id,name,mimeType)' +
     '&pageSize=200';
 
-  const res = await fetch(driveUrl, {
+  const res = await fetchWithTimeout(driveUrl, {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     cf: { cacheTtl: 0 },
-  });
+  }, 8000);
 
   if (!res.ok) {
     console.error('Drive API error (' + res.status + '): ' + await res.text());
@@ -671,10 +673,11 @@ async function buildPhotoMap(env, accessToken) {
 // rather than crashing the entire Worker.
 async function fetchPhotoData(fileId, accessToken) {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       'https://www.googleapis.com/drive/v3/files/' +
         encodeURIComponent(fileId) + '?alt=media',
-      { headers: { 'Authorization': 'Bearer ' + accessToken } }
+      { headers: { 'Authorization': 'Bearer ' + accessToken } },
+      8000
     );
 
     if (!res.ok) {
