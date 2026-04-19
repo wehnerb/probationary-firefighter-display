@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from './shared/fetch-helpers.js';
+import { escapeHtml, sanitizeParam } from './shared/html.js';
 
 // =============================================================================
 // probationary-firefighter-display — Cloudflare Worker
@@ -133,6 +134,26 @@ export default {
     // browser-based testing where the display system background is not present.
     // Production display URLs should never include this parameter.
     const darkBg = url.searchParams.get('bg') === 'dark';
+
+    var REQUIRED_SECRETS = [
+      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_PRIVATE_KEY',
+      'GOOGLE_SHEET_ID',
+      'GOOGLE_DRIVE_FOLDER_ID'
+    ];
+    for (var i = 0; i < REQUIRED_SECRETS.length; i++) {
+      var key = REQUIRED_SECRETS[i];
+      if (!env[key]) {
+        console.error('[probationary-firefighter-display] Missing required secret: ' + key);
+        return renderErrorPage(
+          'CONFIGURATION ERROR',
+          'Missing secret: ' + key,
+          layout,
+          layoutKey,
+          darkBg
+        );
+      }
+    }
 
     // Compute the rotation block index synchronously before the cache check.
     // The block index is stable for ROTATION_DAYS days at a time and serves
@@ -707,30 +728,6 @@ async function fetchPhotoData(fileId, accessToken) {
     console.error('Photo fetch exception for Drive file ID "' + fileId + '":', err);
     return null;
   }
-}
-
-
-// =============================================================================
-// INPUT HELPERS
-// =============================================================================
-
-// Sanitizes a URL parameter value to prevent injection attacks.
-// Allows only alphanumeric characters, hyphens, and underscores.
-function sanitizeParam(value) {
-  if (!value || typeof value !== 'string') return null;
-  return value.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 50);
-}
-
-// Escapes a string for safe insertion into HTML content.
-// Applied to all values sourced from the Google Sheet before injection.
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 
