@@ -2,6 +2,7 @@ import { fetchWithTimeout } from './shared/fetch-helpers.js';
 import { escapeHtml, sanitizeParam } from './shared/html.js';
 import { getAccessToken } from './shared/google-auth.js';
 import { DARK_BG_COLOR } from './shared/constants.js';
+import { getTodayString, getDaysElapsed, getBlockIndex, getSecondsUntilNextRotation, formatHireDate } from './shared/rotation.js';
 
 // =============================================================================
 // probationary-firefighter-display — Cloudflare Worker
@@ -152,8 +153,8 @@ export default {
     // The block index is stable for ROTATION_DAYS days at a time and serves
     // as the cache key discriminator — when it changes, the old cache entry
     // is naturally bypassed and a fresh page is generated and cached.
-    const todayStr   = getTodayString();
-    const blockIndex = getBlockIndex(todayStr);
+    const todayStr   = getTodayString(ROTATION_TIME);
+    const blockIndex = getBlockIndex(todayStr, ROTATION_ANCHOR, ROTATION_DAYS);
 
     // --- Workers Cache API ---
     // The rendered page is expensive to generate: JWT signing, OAuth token
@@ -238,7 +239,7 @@ export default {
       // intervals near the rotation boundary.
       const refreshSeconds = Math.max(
         MIN_REFRESH_SECONDS,
-        getSecondsUntilNextRotation()
+        getSecondsUntilNextRotation(ROTATION_TIME)
       );
 
       const html = buildFirefighterPage(
@@ -289,111 +290,6 @@ export default {
 };
 
 
-// =============================================================================
-// DATE, ROTATION, AND ACTIVE-STATUS HELPERS
-// =============================================================================
-// The rotation functions below are copied directly from daily-message-display
-// to guarantee identical 7:30 AM Central boundaries and DST behavior across
-// both Workers. Do not modify the logic without also updating the other Worker.
-
-// Returns today's date string (YYYY-MM-DD) in America/Chicago time.
-// Before ROTATION_TIME (7:30 AM Central), returns yesterday's date so the
-// rotation doesn't advance until 7:30 AM rather than at midnight.
-function getTodayString() {
-  const now   = new Date();
-  const parts = {};
-
-  for (const part of new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
-    year:     'numeric',
-    month:    '2-digit',
-    day:      '2-digit',
-    hour:     'numeric',
-    minute:   'numeric',
-    hour12:   false,
-  }).formatToParts(now)) {
-    if (part.type !== 'literal') {
-      parts[part.type] = parseInt(part.value, 10);
-    }
-  }
-
-  // If before ROTATION_TIME, use yesterday's date so the rotation
-  // doesn't advance until 7:30 AM Central rather than at midnight.
-  const secondsSinceMidnight = parts.hour * 3600 + parts.minute * 60;
-  const rotationSecondOfDay  = ROTATION_TIME.hour * 3600 + ROTATION_TIME.minute * 60;
-
-  if (secondsSinceMidnight < rotationSecondOfDay) {
-    // Before 7:30 AM — step back one day
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Chicago',
-      year:     'numeric',
-      month:    '2-digit',
-      day:      '2-digit',
-    }).format(yesterday);
-  }
-
-  // 7:30 AM or later — use today's date
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Chicago',
-    year:     'numeric',
-    month:    '2-digit',
-    day:      '2-digit',
-  }).format(now);
-}
-
-// Returns the number of whole calendar days elapsed since ROTATION_ANCHOR
-// in America/Chicago time. Returns 0 if called before the anchor date.
-// Both strings are treated as UTC midnight — they are already Central date
-// strings (YYYY-MM-DD) so no offset conversion is needed for day counting.
-function getDaysElapsed(todayStr) {
-  const anchor   = new Date(ROTATION_ANCHOR + 'T00:00:00Z');
-  const today    = new Date(todayStr        + 'T00:00:00Z');
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.max(0, Math.floor((today - anchor) / msPerDay));
-}
-
-// Returns the zero-based index of the current ROTATION_DAYS-day block.
-// Use as: active[getBlockIndex(todayStr) % active.length]
-function getBlockIndex(todayStr) {
-  return Math.floor(getDaysElapsed(todayStr) / ROTATION_DAYS);
-}
-
-// Returns the number of seconds until the next ROTATION_TIME in Central time.
-// DST-safe: Intl.DateTimeFormat with America/Chicago handles spring and fall
-// transitions correctly so the boundary always falls at 7:30 AM local time.
-function getSecondsUntilNextRotation() {
-  const now   = new Date();
-  const parts = {};
-
-  for (const part of new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
-    hour:     'numeric',
-    minute:   'numeric',
-    second:   'numeric',
-    hour12:   false,
-  }).formatToParts(now)) {
-    if (part.type !== 'literal') {
-      parts[part.type] = parseInt(part.value, 10);
-    }
-  }
-
-  const secondsSinceMidnight =
-    parts.hour * 3600 + parts.minute * 60 + parts.second;
-
-  const rotationSecondOfDay =
-    ROTATION_TIME.hour * 3600 + ROTATION_TIME.minute * 60;
-
-  let secondsUntil = rotationSecondOfDay - secondsSinceMidnight;
-
-  // If today's rotation time has already passed, target tomorrow's.
-  if (secondsUntil <= 0) {
-    secondsUntil += 24 * 3600;
-  }
-
-  return secondsUntil;
-}
-
 // Returns true if the firefighter is within HIRE_ACTIVE_DAYS of their hire
 // date. Both date strings are in YYYY-MM-DD format (Central time).
 // A firefighter hired today (daysOn = 0) is active; one hired exactly
@@ -405,18 +301,6 @@ function isActive(hireDateStr, todayStr) {
   const msPerDay = 1000 * 60 * 60 * 24;
   const daysOn   = Math.floor((today - hire) / msPerDay);
   return daysOn >= 0 && daysOn < HIRE_ACTIVE_DAYS;
-}
-
-// Formats a YYYY-MM-DD date string as "Month D, YYYY" (e.g. "January 19, 2026").
-// Using noon UTC avoids any DST-related date boundary edge cases.
-function formatHireDate(dateStr) {
-  if (!dateStr) return '';
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
-    year:     'numeric',
-    month:    'long',
-    day:      'numeric',
-  }).format(new Date(dateStr + 'T12:00:00Z'));
 }
 
 
