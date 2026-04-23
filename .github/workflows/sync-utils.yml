@@ -65,7 +65,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         run: git push origin sync-utils-v${{ steps.version.outputs.version }} --force
 
-      - name: Open PR
+      - name: Open PR targeting staging
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,5 +74,29 @@ jobs:
             --base staging \
             --head sync-utils-v${{ steps.version.outputs.version }} \
             --title "chore: sync shared utils to v${{ steps.version.outputs.version }}" \
-            --body "Automated sync from ffd-station-display-utils v${{ steps.version.outputs.version }}. Review the diff, test on staging, and merge when ready." \
-            --repo wehnerb/probationary-firefighter-display
+            --body "Automated sync from ffd-station-display-utils v${{ steps.version.outputs.version }}." \
+            --repo wehnerb/probationary-firefighter-display \
+            2>/dev/null || echo "PR already exists — skipping."
+
+      - name: Auto-merge sync branch to staging
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 5
+          gh pr merge sync-utils-v${{ steps.version.outputs.version }} \
+            --merge \
+            --repo wehnerb/probationary-firefighter-display \
+            2>/dev/null && echo "Merged to staging." || echo "Merge to staging failed — PR left open."
+
+      - name: Merge staging into main
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin staging
+          git fetch origin main
+          git checkout main
+          git merge --no-ff origin/staging \
+            -m "chore: promote utils v${{ steps.version.outputs.version }} to main"
+          git push origin main && echo "Merged staging to main." || echo "Merge to main failed — staging is up to date."
