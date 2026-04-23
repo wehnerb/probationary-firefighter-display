@@ -59,6 +59,10 @@ export const TEXT_PRIMARY   = 'rgba(255,255,255,0.92)';
 export const TEXT_SECONDARY = 'rgba(255,255,255,0.68)';
 export const TEXT_TERTIARY  = 'rgba(255,255,255,0.38)';
 
+// SUPPORTING: mid-opacity text for supporting content such as rank,
+// field values, and secondary info that sits between SECONDARY and PRIMARY.
+export const TEXT_SUPPORTING = 'rgba(255,255,255,0.75)';
+
 // Borders — white at two opacity levels.
 // SUBTLE: standard card borders, dividers between sections
 // STRONG: emphasized separators, today-panel borders
