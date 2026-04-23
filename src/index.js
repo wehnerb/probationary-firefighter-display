@@ -2,7 +2,7 @@ import { fetchWithTimeout } from './shared/fetch-helpers.js';
 import { escapeHtml, sanitizeParam } from './shared/html.js';
 import { getAccessToken } from './shared/google-auth.js';
 import { getTodayString, getDaysElapsed, getBlockIndex, getSecondsUntilNextRotation, formatHireDate } from './shared/rotation.js';
-import { DARK_BG_COLOR, FONT_STACK, ACCENT_COLOR, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, BORDER_SUBTLE, BORDER_STRONG, CARD_BASE, CARD_ELEVATED, CARD_HEADER, CARD_RECESSED } from './shared/colors.js';
+import { DARK_BG_COLOR, FONT_STACK, ACCENT_COLOR, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, TEXT_SUPPORTING, BORDER_SUBTLE, BORDER_STRONG, CARD_BASE, CARD_ELEVATED, CARD_HEADER, CARD_RECESSED } from './shared/colors.js';
 import { LAYOUTS } from './shared/layouts.js';
 
 // =============================================================================
@@ -733,7 +733,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '.rank {' +
     '  font-size: '     + rankFontSize + 'px;' +
     '  font-weight: 400;' +
-    '  color: rgba(255,255,255,0.75);' +
+    '  color: ' + TEXT_SUPPORTING + ';' +
     '  margin-bottom: ' + Math.floor(rankFontSize * 0.45) + 'px;' +
     '  flex-shrink: 0;' +
     '}' +
@@ -761,7 +761,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '}' +
     '.field-value {' +
     '  font-weight: 400;' +
-    '  color: rgba(255,255,255,0.75);' +
+    '  color: ' + TEXT_SUPPORTING + ';' +
     '}' +
 
     // Q&A section — grows to fill all remaining vertical space, then
@@ -787,7 +787,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '}' +
     '.qa-value {' +
     '  font-weight: 400;' +
-    '  color: rgba(255,255,255,0.75);' +
+    '  color: ' + TEXT_SUPPORTING + ';' +
     '}';
 
   // --- Assemble final HTML ---
