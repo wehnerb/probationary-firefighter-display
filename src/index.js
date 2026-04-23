@@ -1,8 +1,9 @@
 import { fetchWithTimeout } from './shared/fetch-helpers.js';
 import { escapeHtml, sanitizeParam } from './shared/html.js';
 import { getAccessToken } from './shared/google-auth.js';
-import { DARK_BG_COLOR } from './shared/constants.js';
 import { getTodayString, getDaysElapsed, getBlockIndex, getSecondsUntilNextRotation, formatHireDate } from './shared/rotation.js';
+import { DARK_BG_COLOR, FONT_STACK, ACCENT_COLOR, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, BORDER_SUBTLE, BORDER_STRONG, CARD_BASE, CARD_ELEVATED, CARD_HEADER, CARD_RECESSED } from './shared/colors.js';
+import { LAYOUTS } from './shared/layouts.js';
 
 // =============================================================================
 // probationary-firefighter-display — Cloudflare Worker
@@ -72,22 +73,10 @@ const HIRE_ACTIVE_DAYS = 365;
 // Options: 'full', 'wide', 'split', 'tri'
 const DEFAULT_LAYOUT = 'wide';
 
-// Layout pixel dimensions — must match the rest of the display system.
-// Do not change unless display hardware changes.
-const LAYOUTS = {
-  full:  { width: 1920, height: 1075 },
-  wide:  { width: 1735, height: 720  },
-  split: { width: 852,  height: 720  },
-  tri:   { width: 558,  height: 720  },
-};
-
 // Reserved column header names (lowercase). These are read as named fields.
 // Every other column header in the sheet is treated as a Q&A question.
 // Hometown is grouped with the fixed fields at the top of the info panel.
 const FIXED_COLUMNS = new Set(['name', 'badge', 'hire date', 'shift', 'rank', 'photo', 'hometown']);
-
-// FFD brand red — used for the title bar (full layout only) and accent divider.
-const ACCENT_COLOR = '#C8102E';
 
 // Name of the data tab in the Google Sheet.
 // Update this constant if the tab is ever renamed.
@@ -669,7 +658,7 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
     '  height: '           + height + 'px;' +
     '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
+    '  font-family: ' + FONT_STACK + ';' +
     '}' +
 
     // Title bar — full layout only; spans the full width outside outer padding
@@ -857,12 +846,12 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
     '  height: '    + height + 'px;' +
     '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
+    '  font-family: ' + FONT_STACK + ';' +
     '  display: flex; align-items: center; justify-content: center;' +
     '}' +
     '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
-    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: #C8102E; letter-spacing: 0.06em; }' +
-    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.92); }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: ' + ACCENT_COLOR + '; letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: ' + TEXT_PRIMARY + '; }' +
     '</style>' +
     '</head>' +
     '<body>' +
@@ -904,12 +893,12 @@ function renderErrorPage(title, subtitle, layout, layoutKey, darkBg) {
     '  height: '    + height + 'px;' +
     '  overflow: hidden;' +
     '  background: ' + (darkBg || layoutKey === 'full' ? DARK_BG_COLOR : 'transparent') + ';' +
-    '  font-family: "Segoe UI", Arial, Helvetica, sans-serif;' +
+    '  font-family: ' + FONT_STACK + ';' +
     '  display: flex; align-items: center; justify-content: center;' +
     '}' +
     '.err-wrap { display: flex; flex-direction: column; align-items: center; gap: ' + Math.floor(subFont * 0.6) + 'px; text-align: center; padding: 0 ' + Math.floor(width * 0.08) + 'px; }' +
-    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: #C8102E; letter-spacing: 0.06em; }' +
-    '.err-sub   { font-size: ' + subFont   + 'px; color: rgba(255,255,255,0.92); }' +
+    '.err-title { font-size: ' + titleFont + 'px; font-weight: 700; color: ' + ACCENT_COLOR + '; letter-spacing: 0.06em; }' +
+    '.err-sub   { font-size: ' + subFont   + 'px; color: ' + TEXT_PRIMARY + '; }' +
     '</style>' +
     '</head>' +
     '<body>' +
