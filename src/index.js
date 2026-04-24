@@ -109,6 +109,46 @@ export default {
     // Parse and validate the layout URL parameter before the try block so the
     // error page renderer always has a valid layout to work with.
     const url         = new URL(request.url);
+
+    if (url.pathname === '/healthz') {
+      var healthStatus = 'healthy';
+      var healthDetail = '';
+
+      try {
+        var probeRes = await fetchWithTimeout(
+          'https://oauth2.googleapis.com/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'grant_type=placeholder',
+          },
+          5000
+        );
+        if (probeRes.status === 400) {
+          healthDetail = 'google-apis: reachable';
+        } else {
+          healthStatus = 'degraded';
+          healthDetail = 'google-apis: unexpected status ' + probeRes.status;
+        }
+      } catch (e) {
+        healthStatus = 'degraded';
+        healthDetail = 'google-apis: unreachable (' + (e && e.message ? e.message : String(e)) + ')';
+      }
+
+      return new Response(
+        'status: ' + healthStatus + '\n' +
+        'worker: probationary-firefighter-display\n' +
+        healthDetail + '\n',
+        {
+          status: healthStatus === 'healthy' ? 200 : 503,
+          headers: {
+            'Content-Type':  'text/plain; charset=UTF-8',
+            'Cache-Control': 'no-store',
+          },
+        }
+      );
+    }
+
     const layoutParam = sanitizeParam(url.searchParams.get('layout')) || DEFAULT_LAYOUT;
     const layoutKey   = (layoutParam in LAYOUTS) ? layoutParam : DEFAULT_LAYOUT;
     const layout      = LAYOUTS[layoutKey];
