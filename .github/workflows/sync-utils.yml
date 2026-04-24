@@ -100,3 +100,11 @@ jobs:
           git merge --no-ff origin/staging \
             -m "chore: promote utils v${{ steps.version.outputs.version }} to main"
           git push origin main && echo "Merged staging to main." || echo "Merge to main failed — staging is up to date."
+
+      - name: Delete sync branch
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin --delete sync-utils-v${{ steps.version.outputs.version }} \
+            2>/dev/null && echo "Deleted sync branch sync-utils-v${{ steps.version.outputs.version }}." || echo "Branch already deleted or not found — skipping."
