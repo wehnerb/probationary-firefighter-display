@@ -49,7 +49,7 @@ export const FONT_STACK = '"Segoe UI", Arial, Helvetica, sans-serif';
 //   - Title dividers and underlines
 //   - Accent dividers in info panels
 // Never used as a decorative top border or purely ornamental element.
-export const ACCENT_COLOR = '#C8102E';
+export const ACCENT_COLOR = '#FF0000';
 
 // Text hierarchy — white at decreasing opacity levels.
 // PRIMARY:   body text, values, titles
