@@ -291,7 +291,9 @@ export default {
       });
 
       // Store a separately-headered copy in the Workers Cache API.
-      // The TTL is 3 days — long enough to cover an entire rotation block.
+      // Cache-Control is no-store so the hardware browser never caches
+      // the page locally. The Cloudflare Workers Cache API caches it
+      // server-side regardless of this header value.
       // The block index in the cache key naturally invalidates the entry when
       // the rotation advances so no explicit purge is ever required.
       // ?bg=dark requests are never cached.
@@ -300,7 +302,7 @@ export default {
           status: 200,
           headers: {
             'Content-Type':           'text/html; charset=utf-8',
-            'Cache-Control':          'public, max-age=' + (3 * 24 * 3600),
+            'Cache-Control':          'no-store',
             'X-Content-Type-Options': 'nosniff',
           },
         });
