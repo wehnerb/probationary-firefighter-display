@@ -772,6 +772,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '.field-value {' +
     '  font-weight: 400;' +
     '  color: ' + TEXT_SUPPORTING + ';' +
+    '  font-variant-numeric: tabular-nums;' +
     '}' +
 
     // Q&A section — grows to fill all remaining vertical space, then
