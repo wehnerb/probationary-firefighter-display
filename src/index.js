@@ -511,7 +511,7 @@ async function buildPhotoMap(env, accessToken) {
 //   wide / full  — photo on the left (~42% width), info panel on the right
 //   split / tri  — photo stacked on top (~38% of height), info panel below
 //
-// The "PROBATIONARY FIREFIGHTERS" title bar is rendered only in the full
+// The "PROBATIONARY FIREFIGHTER SPOTLIGHT" title bar is rendered only in the full
 // layout. Wide, split, and tri layouts have a title bar provided by the
 // display system — adding one here would be redundant.
 //
@@ -654,7 +654,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
 
   // --- Title bar (full layout only) ---
   const titleHtml = showTitle
-    ? '<div class="title-bar">PROBATIONARY FIREFIGHTERS</div>'
+    ? '<div class="title-bar">PROBATIONARY FIREFIGHTER SPOTLIGHT</div>'
     : '';
 
   // --- CSS ---
@@ -809,7 +809,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '<meta charset="UTF-8">' +
     '<meta http-equiv="refresh" content="' + refreshSeconds + '">' +
     '<meta name="viewport" content="width=' + width + ', height=' + height + '">' +
-    '<title>Probationary Firefighters</title>' +
+    '<title>Probationary Firefighter Spotlight</title>' +
     '<style>' + css + '</style>' +
     '</head>' +
     '<body>' +
@@ -849,7 +849,7 @@ function renderNoActivePage(layout, layoutKey, darkBg) {
     '<head>' +
     '<meta charset="UTF-8">' +
     '<meta http-equiv="refresh" content="' + ERROR_RETRY_SECONDS + '">' +
-    '<title>Probationary Firefighters</title>' +
+    '<title>Probationary Firefighter Spotlight</title>' +
     '<style>' +
     '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
     'html, body {' +
@@ -896,7 +896,7 @@ function renderErrorPage(title, subtitle, layout, layoutKey, darkBg) {
     '<head>' +
     '<meta charset="UTF-8">' +
     '<meta http-equiv="refresh" content="' + ERROR_RETRY_SECONDS + '">' +
-    '<title>Probationary Firefighters</title>' +
+    '<title>Probationary Firefighter Spotlight</title>' +
     '<style>' +
     '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }' +
     'html, body {' +
