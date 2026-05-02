@@ -17,6 +17,7 @@
 //   import {
 //     DARK_BG_COLOR,
 //     FONT_STACK,
+//     FONT_STACK_SERIF,
 //     ACCENT_COLOR,
 //     TEXT_PRIMARY,
 //     TEXT_SECONDARY,
@@ -43,6 +44,13 @@ export const DARK_BG_COLOR = '#111111';
 // web fonts here without hardware testing first.
 export const FONT_STACK = '"Segoe UI", Arial, Helvetica, sans-serif';
 
+// Serif font stack — used for long-form or quote-style message content
+// where a serif face adds a tone of formality or warmth.
+// Currently used by: daily-message-display (message body text).
+// External serif web fonts are unreliable on Pi hardware — Georgia
+// is available natively on both Windows and Linux (Pi).
+export const FONT_STACK_SERIF = 'Georgia, "Times New Roman", serif';
+
 // FFD brand red — used functionally only:
 //   - Alert/urgent left border stripes
 //   - Section header bars (weather conditions panel)
@@ -57,7 +65,7 @@ export const ACCENT_COLOR = '#FF0000';
 // TERTIARY:  timestamps, hints, least-important content
 export const TEXT_PRIMARY   = 'rgba(255,255,255,0.92)';
 export const TEXT_SECONDARY = 'rgba(255,255,255,0.68)';
-export const TEXT_TERTIARY  = 'rgba(255,255,255,0.38)';
+export const TEXT_TERTIARY  = 'rgba(255,255,255,0.50)';
 
 // SUPPORTING: mid-opacity text for supporting content such as rank,
 // field values, and secondary info that sits between SECONDARY and PRIMARY.
@@ -75,7 +83,7 @@ export const BORDER_STRONG = 'rgba(255,255,255,0.18)';
 // BASE:     standard card surface
 // ELEVATED: slightly raised blocks within a card
 // HEADER:   today/primary panel header — highest card-level elevation
-export const CARD_RECESSED = 'rgba(255,255,255,0.03)';
-export const CARD_BASE     = 'rgba(255,255,255,0.06)';
-export const CARD_ELEVATED = 'rgba(255,255,255,0.10)';
-export const CARD_HEADER   = 'rgba(255,255,255,0.17)';
+export const CARD_RECESSED = 'rgba(255,255,255,0.04)';
+export const CARD_BASE     = 'rgba(255,255,255,0.07)';
+export const CARD_ELEVATED = 'rgba(255,255,255,0.11)';
+export const CARD_HEADER   = 'rgba(255,255,255,0.16)';
