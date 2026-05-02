@@ -41,8 +41,8 @@ import { LAYOUTS } from './shared/layouts.js';
 //   - All user-provided content HTML-escaped before injection into pages
 //   - No X-Frame-Options header — this Worker is loaded as a full-screen
 //     iframe by the display system; SAMEORIGIN causes immediate white screens
-//   - Drive photos fetched server-side and embedded as base64 data URIs;
-//     the display browser never contacts Google Drive directly
+//   - Drive photos served via /photo/{fileId} streaming proxy route;
+//     browser fetches photos directly, no server-side encoding required.
 // =============================================================================
 
 
@@ -88,10 +88,6 @@ const ERROR_RETRY_SECONDS = 60;
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
-
-// Workers Cache API version. Increment this integer to immediately invalidate
-// all cached pages — useful after code changes that affect the rendered output.
-const CACHE_VERSION = 1;
 
 
 // =============================================================================
@@ -149,6 +145,46 @@ export default {
       );
     }
 
+    // Photo proxy route: /photo/{fileId}
+    // Fetches a Drive photo using a fresh service account token and streams
+    // the bytes directly to the browser. No base64 encoding — eliminates
+    // the CPU cost that caused Cloudflare 1102 errors with large photos.
+    // The token never appears in any client-visible URL.
+    if (url.pathname.startsWith('/photo/')) {
+      var photoFileId = url.pathname.slice('/photo/'.length);
+      if (!photoFileId) {
+        return new Response('Not found', { status: 404 });
+      }
+      try {
+        var photoToken = await getAccessToken(
+          env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+          env.GOOGLE_PRIVATE_KEY,
+          'https://www.googleapis.com/auth/drive.readonly'
+        );
+        var photoRes = await fetchWithTimeout(
+          'https://www.googleapis.com/drive/v3/files/' +
+            encodeURIComponent(photoFileId) + '?alt=media',
+          { headers: { 'Authorization': 'Bearer ' + photoToken } },
+          8000
+        );
+        if (!photoRes.ok) {
+          console.error('Photo proxy: Drive fetch failed (' + photoRes.status + ') for fileId: ' + photoFileId);
+          return new Response('Photo unavailable', { status: 502 });
+        }
+        return new Response(photoRes.body, {
+          status: 200,
+          headers: {
+            'Content-Type':           photoRes.headers.get('Content-Type') || 'image/jpeg',
+            'Cache-Control':          'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+      } catch (e) {
+        console.error('Photo proxy error for fileId "' + photoFileId + '":', e && e.message ? e.message : e);
+        return new Response('Photo unavailable', { status: 502 });
+      }
+    }
+
     const layoutParam = sanitizeParam(url.searchParams.get('layout')) || DEFAULT_LAYOUT;
     const layoutKey   = (layoutParam in LAYOUTS) ? layoutParam : DEFAULT_LAYOUT;
     const layout      = LAYOUTS[layoutKey];
@@ -184,28 +220,6 @@ export default {
     // is naturally bypassed and a fresh page is generated and cached.
     const todayStr   = getTodayString(ROTATION_TIME);
     const blockIndex = getBlockIndex(todayStr, ROTATION_ANCHOR, ROTATION_DAYS);
-
-    // --- Workers Cache API ---
-    // The rendered page is expensive to generate: JWT signing, OAuth token
-    // exchange, Sheets fetch, Drive folder listing, and photo base64 encoding
-    // all occur on every cache miss. Caching prevents these operations from
-    // running on every display screen request.
-    //
-    // Cache key includes CACHE_VERSION (for manual invalidation), layoutKey
-    // (each layout renders differently), and blockIndex (rotates every 3 days).
-    // ?bg=dark requests bypass the cache entirely — they are for browser-based
-    // testing only and must not pollute the production cache.
-    const cache    = caches.default;
-    const cacheKey = new Request(
-      'https://prob-display-cache.internal/v' + CACHE_VERSION +
-      '/' + layoutKey + '/' + blockIndex,
-      { method: 'GET' }
-    );
-
-    if (!darkBg) {
-      const cached = await cache.match(cacheKey);
-      if (cached) return cached;
-    }
 
     try {
       // Obtain a Google OAuth2 access token. The drive.readonly scope covers
@@ -247,14 +261,15 @@ export default {
       // after the last firefighter so the list loops continuously.
       const firefighter = active[blockIndex % active.length];
 
-      // Look up the firefighter's photo in the Drive map (case-insensitive).
-      // A missing or unmatched photo filename is logged but not fatal — the
-      // page renders with a silhouette placeholder instead.
-      let photoData = null;
+      // Look up the file ID for the firefighter's photo in the Drive map.
+      // The file ID is passed to buildFirefighterPage which constructs a
+      // /photo/{fileId} URL. The browser fetches the photo via the streaming
+      // proxy route — no server-side encoding required.
+      let photoFileId = null;
       if (firefighter.photo) {
-        const fileId = photoMap.get(firefighter.photo.toLowerCase());
-        if (fileId) {
-          photoData = await fetchPhotoData(fileId, accessToken);
+        const foundId = photoMap.get(firefighter.photo.toLowerCase());
+        if (foundId) {
+          photoFileId = foundId;
         } else {
           console.error(
             'Photo not found in Drive folder for "' + firefighter.name +
@@ -272,7 +287,7 @@ export default {
       );
 
       const html = buildFirefighterPage(
-        firefighter, photoData, layout, layoutKey, refreshSeconds, darkBg
+        firefighter, photoFileId, layout, layoutKey, refreshSeconds, darkBg
       );
 
       const response = new Response(html, {
@@ -289,25 +304,6 @@ export default {
           // white screens on every station display.
         },
       });
-
-      // Store a separately-headered copy in the Workers Cache API.
-      // Cache-Control is no-store so the hardware browser never caches
-      // the page locally. The Cloudflare Workers Cache API caches it
-      // server-side regardless of this header value.
-      // The block index in the cache key naturally invalidates the entry when
-      // the rotation advances so no explicit purge is ever required.
-      // ?bg=dark requests are never cached.
-      if (!darkBg) {
-        const responseToCache = new Response(html, {
-          status: 200,
-          headers: {
-            'Content-Type':           'text/html; charset=utf-8',
-            'Cache-Control':          'no-store',
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-        await cache.put(cacheKey, responseToCache);
-      }
 
       return response;
 
@@ -498,48 +494,6 @@ async function buildPhotoMap(env, accessToken) {
   return map;
 }
 
-// Fetches a Drive file's binary content and returns it as a base64 data URI
-// for inline embedding. The display browser never contacts Drive directly.
-// Returns null on any failure so the page renders with a silhouette placeholder
-// rather than crashing the entire Worker.
-async function fetchPhotoData(fileId, accessToken) {
-  try {
-    const res = await fetchWithTimeout(
-      'https://www.googleapis.com/drive/v3/files/' +
-        encodeURIComponent(fileId) + '?alt=media',
-      { headers: { 'Authorization': 'Bearer ' + accessToken } },
-      8000
-    );
-
-    if (!res.ok) {
-      console.error(
-        'Photo fetch failed (' + res.status + ') for Drive file ID: ' + fileId
-      );
-      return null;
-    }
-
-    // Convert binary response to base64 in fixed-size chunks to avoid
-    // call-stack overflow on large images (same safe pattern as other Workers).
-    const arrayBuffer = await res.arrayBuffer();
-    const bytes       = new Uint8Array(arrayBuffer);
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-
-    const mimeType = res.headers.get('content-type') || 'image/jpeg';
-    return {
-      dataUri: 'data:' + mimeType + ';base64,' + btoa(binary),
-      mimeType,
-    };
-
-  } catch (err) {
-    console.error('Photo fetch exception for Drive file ID "' + fileId + '":', err);
-    return null;
-  }
-}
-
 
 // =============================================================================
 // HTML PAGE BUILDERS
@@ -574,7 +528,7 @@ async function fetchPhotoData(fileId, accessToken) {
 // browser-based testing where the display system background is not present.
 // String concatenation used throughout to prevent smart-quote corruption when
 // the file is edited in GitHub's browser editor.
-function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refreshSeconds, darkBg) {
+function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refreshSeconds, darkBg) {
   const { width, height } = layout;
 
   const isWideFamily = (layoutKey === 'wide' || layoutKey === 'full');
@@ -674,9 +628,17 @@ function buildFirefighterPage(firefighter, photoData, layout, layoutKey, refresh
   // If no photo is available, a generic person silhouette SVG is shown so
   // the layout remains visually consistent. The silhouette uses a dark
   // background with a neutral gray figure matching the display aesthetic.
-  const photoHtml = photoData
-    ? '<img src="' + photoData.dataUri + '" alt="Photo of ' +
-        escapeHtml(firefighter.name) + '">'
+  const photoHtml = photoFileId
+    ? '<img src="/photo/' + encodeURIComponent(photoFileId) + '" alt="Photo of ' +
+        escapeHtml(firefighter.name) + '" ' +
+        'style="width:100%;height:100%;object-fit:cover;object-position:top center;" ' +
+        'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
+        'style="width:100%;height:100%;display:none;">' +
+        '<rect width="200" height="260" fill="#1a1a1a"/>' +
+        '<circle cx="100" cy="82" r="46" fill="#555"/>' +
+        '<path d="M0,260 C0,165 38,145 100,140 C162,145 200,165 200,260 Z" fill="#555"/>' +
+        '</svg>'
     : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
         'style="width:100%;height:100%;display:block;">' +
         '<rect width="200" height="260" fill="#1a1a1a"/>' +
