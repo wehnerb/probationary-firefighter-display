@@ -632,8 +632,10 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
 
   // --- Photo block ---
   // If no photo is available, a generic person silhouette SVG is shown so
-  // the layout remains visually consistent. The silhouette uses a dark
-  // background with a neutral gray figure matching the display aesthetic.
+  // the layout remains visually consistent. The silhouette figure sits over
+  // the photo column's own dark background (set on .photo-col) so the
+  // placeholder fills the same area a real photo would occupy, regardless of
+  // column aspect ratio.
   const photoHtml = photoFileId
     ? '<img src="/photo/' + encodeURIComponent(photoFileId) + '" alt="Photo of ' +
         escapeHtml(firefighter.name) + '" ' +
@@ -641,13 +643,11 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
         'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">' +
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
         'style="width:100%;height:100%;display:none;">' +
-        '<rect width="200" height="260" fill="#1a1a1a"/>' +
         '<circle cx="100" cy="82" r="46" fill="#555"/>' +
         '<path d="M0,260 C0,165 38,145 100,140 C162,145 200,165 200,260 Z" fill="#555"/>' +
         '</svg>'
     : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
         'style="width:100%;height:100%;display:block;">' +
-        '<rect width="200" height="260" fill="#1a1a1a"/>' +
         '<circle cx="100" cy="82" r="46" fill="#555"/>' +
         '<path d="M0,260 C0,165 38,145 100,140 C162,145 200,165 200,260 Z" fill="#555"/>' +
         '</svg>';
@@ -708,6 +708,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  width: '    + photoWidth  + 'px;' +
     '  height: '   + photoHeight + 'px;' +
     '  overflow: hidden;' +
+    '  background: #1a1a1a;' +
     '}' +
     // Image fills the column; anchored to top so faces are not cropped
     '.photo-col img {' +
