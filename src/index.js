@@ -85,6 +85,9 @@ const SHEET_TAB_NAME = 'Firefighters';
 // How long the error/retry page waits before reloading (seconds).
 const ERROR_RETRY_SECONDS = 60;
 
+// Cache version — increment this value to bust any caches keyed on this Worker.
+const CACHE_VERSION = 1;
+
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
@@ -548,6 +551,9 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
   const rankFontSize  = Math.floor(minDim * 0.032); // e.g. 720px * 0.032 = 23px
   const fieldFontSize = Math.floor(minDim * 0.029); // fixed fields (hire date, shift, badge, hometown)
   const qaFontSize    = Math.floor(minDim * 0.026); // Q&A question/answer pairs
+  // Minimum Q&A font size — JS scaling will not shrink below this value.
+  // Floor prevents text from becoming unreadably small on long answers.
+  const qaMinFontSize = Math.max(11, Math.floor(qaFontSize * 0.65));
   const titleFontSize = Math.floor(minDim * 0.034); // full layout title bar only
 
   // --- Outer padding ---
@@ -780,6 +786,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     // distributes questions evenly within that space using space-evenly.
     // Fewer questions get larger gaps; more questions get smaller gaps.
     '.qa-section {' +
+    '  font-size: ' + qaFontSize + 'px;' +
     '  flex: 1;' +
     '  display: flex;' +
     '  flex-direction: column;' +
@@ -790,7 +797,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
 
     // Q&A pair rows — no fixed margin; spacing handled by space-evenly
     '.qa-row {' +
-    '  font-size: '  + qaFontSize + 'px;' +
+    '  font-size: 1em;' +
     '  line-height: 1.4;' +
     '}' +
     '.qa-label {' +
@@ -831,6 +838,18 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
         '</div>' +
       '</div>' +
     '</div>' +
+    '<script>' +
+    'document.addEventListener("DOMContentLoaded", function() {' +
+    '  var sec = document.querySelector(".qa-section");' +
+    '  if (!sec) return;' +
+    '  var min = ' + qaMinFontSize + ';' +
+    '  var sz  = ' + qaFontSize + ';' +
+    '  while (sec.scrollHeight > sec.clientHeight && sz > min) {' +
+    '    sz -= 1;' +
+    '    sec.style.fontSize = sz + "px";' +
+    '  }' +
+    '});' +
+    '</script>' +
     '</body>' +
     '</html>'
   );
