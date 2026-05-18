@@ -95,7 +95,7 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
@@ -731,9 +731,12 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  height: '         + availableHeight + 'px;' +
     '}' +
 
-    // Photo column — no internal padding; outer padding handles edge spacing
+    // Photo column — no internal padding; outer padding handles edge spacing.
+    // flex: none prevents flexbox from overriding the explicit width and height.
+    // Using flex: 0 0 photoWidth would set the wrong flex-basis axis in column
+    // layouts (split/tri), causing the photo to fill the full available height.
     '.photo-col {' +
-    '  flex: 0 0 ' + photoWidth  + 'px;' +
+    '  flex: none;' +
     '  width: '    + photoWidth  + 'px;' +
     '  height: '   + photoHeight + 'px;' +
     '  overflow: hidden;' +
