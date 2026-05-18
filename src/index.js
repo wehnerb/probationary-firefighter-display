@@ -111,11 +111,11 @@ const QA_SCROLL_PAUSE_SECONDS = 10;
 
 // Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
 // scrolling when content only slightly overflows the available space.
-const QA_MIN_SCROLL_SPEED_PX_PER_SEC = 20;
+const QA_MIN_SCROLL_SPEED_PX_PER_SEC = 5;
 
 // Maximum Q&A scroll speed in pixels per second. Prevents uncomfortably fast
 // scrolling when answers are very long.
-const QA_MAX_SCROLL_SPEED_PX_PER_SEC = 75;
+const QA_MAX_SCROLL_SPEED_PX_PER_SEC = 50;
 
 
 // =============================================================================
