@@ -95,7 +95,7 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
@@ -668,7 +668,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
   const photoHtml = photoFileId
     ? '<img src="/photo/' + encodeURIComponent(photoFileId) + '" alt="Photo of ' +
         escapeHtml(firefighter.name) + '" ' +
-        'style="width:100%;height:100%;object-fit:cover;object-position:top center;" ' +
+        'style="width:100%;height:100%;display:block;" ' +
         'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">' +
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" ' +
         'style="width:100%;height:100%;display:none;">' +
@@ -742,13 +742,16 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  overflow: hidden;' +
     '  background: #1a1a1a;' +
     '}' +
-    // Image fills the column; anchored to top so faces are not cropped
+    // wide/full: cover fills the tall narrow column and anchors to the top so
+    // faces are not cropped. split/tri: contain scales the portrait photo down
+    // to fit the short wide strip; the dark .photo-col background fills the bars.
     '.photo-col img {' +
     '  width: 100%;' +
     '  height: 100%;' +
-    '  object-fit: cover;' +
-    '  object-position: center top;' +
     '  display: block;' +
+    (isWideFamily
+      ? '  object-fit: cover; object-position: top center;'
+      : '  object-fit: contain;') +
     '}' +
 
     // Info panel — flex column so .qa-section can grow to fill remaining space
