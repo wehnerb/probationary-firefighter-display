@@ -19,6 +19,15 @@ import { LAYOUTS } from './shared/layouts.js';
 //   - After the last firefighter the list loops back to the first
 //   - Blank fields and Q&A answers are silently omitted from the display
 //
+// Q&A scroll behavior:
+//   - If Q&A content fits within the available panel height, it is static
+//   - If content overflows, a CSS keyframe animation scrolls #qa-inner upward
+//     once: pause at top → scroll → pause at bottom
+//   - ResizeObserver fires once as a layout-ready signal then disconnects
+//   - Three requestAnimationFrame calls defer measurement until layout is fully
+//     settled; both readings must exceed 20 px before scrolling triggers
+//   - Speed is clamped between QA_MIN and QA_MAX scroll speed constants
+//
 // Data sources:
 //   - Firefighter data: Google Sheets (tab defined by SHEET_TAB_NAME)
 //   - Photos:           Google Drive folder (GOOGLE_DRIVE_FOLDER_ID secret)
@@ -86,11 +95,27 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
+
+// Total seconds budgeted for one complete Q&A scroll cycle (pause top → scroll
+// → pause bottom). Controls scroll speed calculation — a longer value produces
+// slower scrolling. Does not affect the page meta-refresh interval.
+const QA_SCROLL_DURATION_SECONDS = 30;
+
+// Seconds to pause at the top and bottom of the Q&A scroll.
+const QA_SCROLL_PAUSE_SECONDS = 4;
+
+// Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
+// scrolling when content only slightly overflows the available space.
+const QA_MIN_SCROLL_SPEED_PX_PER_SEC = 20;
+
+// Maximum Q&A scroll speed in pixels per second. Prevents uncomfortably fast
+// scrolling when answers are very long.
+const QA_MAX_SCROLL_SPEED_PX_PER_SEC = 120;
 
 
 // =============================================================================
@@ -524,7 +549,8 @@ async function buildPhotoMap(env, accessToken) {
 //   3. Red accent divider
 //   4. Fixed fields: Hire Date, Shift, Badge, Hometown (each omitted if blank)
 //   5. Larger gap
-//   6. Q&A pairs distributed evenly across remaining vertical space
+//   6. Q&A pairs inside a scrollable #qa-inner div; scrolls once if content
+//      overflows .qa-section; static and top-aligned when content fits
 //
 // If no photo is available, a generic person silhouette SVG is shown in the
 // photo column so the layout remains consistent regardless of photo status.
@@ -551,9 +577,6 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
   const rankFontSize  = Math.floor(minDim * 0.032); // e.g. 720px * 0.032 = 23px
   const fieldFontSize = Math.floor(minDim * 0.029); // fixed fields (hire date, shift, badge, hometown)
   const qaFontSize    = Math.floor(minDim * 0.026); // Q&A question/answer pairs
-  // Minimum Q&A font size — JS scaling will not shrink below this value.
-  // Floor prevents text from becoming unreadably small on long answers.
-  const qaMinFontSize = Math.max(11, Math.floor(qaFontSize * 0.65));
   const titleFontSize = Math.floor(minDim * 0.034); // full layout title bar only
 
   // --- Outer padding ---
@@ -782,20 +805,28 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  font-variant-numeric: tabular-nums;' +
     '}' +
 
-    // Q&A section — grows to fill all remaining vertical space, then
-    // distributes questions evenly within that space using space-evenly.
-    // Fewer questions get larger gaps; more questions get smaller gaps.
+    // Q&A section — grows to fill all remaining vertical space in the info
+    // panel. Acts as the scroll viewport: overflow hidden clips content that
+    // exceeds the available height. #qa-inner scrolls upward via CSS animation
+    // when Q&A content is taller than this container.
     '.qa-section {' +
-    '  font-size: ' + qaFontSize + 'px;' +
+    '  font-size: '  + qaFontSize + 'px;' +
     '  flex: 1;' +
-    '  display: flex;' +
-    '  flex-direction: column;' +
-    '  justify-content: space-evenly;' +
     '  overflow: hidden;' +
     '  margin-top: ' + Math.floor(fieldFontSize * 1.2) + 'px;' +
     '}' +
 
-    // Q&A pair rows — no fixed margin; spacing handled by space-evenly
+    // Q&A inner scroll container — natural-flow flex column inside .qa-section.
+    // will-change: transform enables GPU layer promotion for the CSS keyframe
+    // translateY animation. Gap provides consistent spacing between Q&A rows.
+    '#qa-inner {' +
+    '  display: flex;' +
+    '  flex-direction: column;' +
+    '  gap: ' + Math.floor(qaFontSize * 0.6) + 'px;' +
+    '  will-change: transform;' +
+    '}' +
+
+    // Q&A pair rows — font size inherited from .qa-section parent.
     '.qa-row {' +
     '  font-size: 1em;' +
     '  line-height: 1.4;' +
@@ -833,22 +864,58 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
           '<div class="divider"></div>' +
           fixedFieldsHtml +
           (qaHtml
-            ? '<div class="qa-section">' + qaHtml + '</div>'
+            ? '<div class="qa-section"><div id="qa-inner">' + qaHtml + '</div></div>'
             : '') +
         '</div>' +
       '</div>' +
     '</div>' +
     '<script>' +
-    'document.addEventListener("DOMContentLoaded", function() {' +
-    '  var sec = document.querySelector(".qa-section");' +
-    '  if (!sec) return;' +
-    '  var min = ' + qaMinFontSize + ';' +
-    '  var sz  = ' + qaFontSize + ';' +
-    '  while (sec.scrollHeight > sec.clientHeight && sz > min) {' +
-    '    sz -= 1;' +
-    '    sec.style.fontSize = sz + "px";' +
+    '(function () {' +
+    '  var DURATION  = ' + QA_SCROLL_DURATION_SECONDS    + ';' +
+    '  var PAUSE     = ' + QA_SCROLL_PAUSE_SECONDS        + ';' +
+    '  var MIN_SPEED = ' + QA_MIN_SCROLL_SPEED_PX_PER_SEC + ';' +
+    '  var MAX_SPEED = ' + QA_MAX_SCROLL_SPEED_PX_PER_SEC + ';' +
+    '  var THRESHOLD = 20;' +
+    '  function applyScroll(inner, overflow) {' +
+    '    var availableTime = Math.max(1, DURATION - (2 * PAUSE));' +
+    '    var speed         = Math.min(MAX_SPEED, Math.max(MIN_SPEED, overflow / availableTime));' +
+    '    var scrollTime    = overflow / speed;' +
+    '    var totalTime     = PAUSE + scrollTime + PAUSE;' +
+    '    var pTop          = (PAUSE / totalTime) * 100;' +
+    '    var pBottom       = 100 - pTop;' +
+    '    var animName      = "scroll-" + Date.now();' +
+    '    var style         = document.createElement("style");' +
+    '    style.textContent = "@keyframes " + animName + " { 0%, " + pTop.toFixed(2) + "% { transform: translateY(0); } " + pBottom.toFixed(2) + "%, 100% { transform: translateY(-" + overflow + "px); } }";' +
+    '    document.head.appendChild(style);' +
+    '    inner.style.animation = animName + " " + totalTime + "s linear forwards";' +
     '  }' +
-    '});' +
+    '  function startLogic() {' +
+    '    var outer = document.querySelector(".qa-section");' +
+    '    var inner = document.getElementById("qa-inner");' +
+    '    if (!outer || !inner) return;' +
+    '    var observer = new ResizeObserver(function() {' +
+    '      observer.disconnect();' +
+    '      requestAnimationFrame(function() {' +
+    '        requestAnimationFrame(function() {' +
+    '          if (outer.clientHeight < 50) return;' +
+    '          var overflow1 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '          if (overflow1 <= THRESHOLD) return;' +
+    '          requestAnimationFrame(function() {' +
+    '            var overflow2 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '            if (overflow2 <= THRESHOLD) return;' +
+    '            applyScroll(inner, overflow2);' +
+    '          });' +
+    '        });' +
+    '      });' +
+    '    });' +
+    '    observer.observe(inner);' +
+    '  }' +
+    '  if (document.fonts) {' +
+    '    document.fonts.ready.then(startLogic);' +
+    '  } else {' +
+    '    window.addEventListener("load", startLogic);' +
+    '  }' +
+    '}());' +
     '</script>' +
     '</body>' +
     '</html>'
