@@ -104,10 +104,10 @@ const MIN_REFRESH_SECONDS = 300;
 // Total seconds budgeted for one complete Q&A scroll cycle (pause top → scroll
 // → pause bottom). Controls scroll speed calculation — a longer value produces
 // slower scrolling. Does not affect the page meta-refresh interval.
-const QA_SCROLL_DURATION_SECONDS = 30;
+const QA_SCROLL_DURATION_SECONDS = 60;
 
 // Seconds to pause at the top and bottom of the Q&A scroll.
-const QA_SCROLL_PAUSE_SECONDS = 4;
+const QA_SCROLL_PAUSE_SECONDS = 10;
 
 // Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
 // scrolling when content only slightly overflows the available space.
@@ -115,7 +115,7 @@ const QA_MIN_SCROLL_SPEED_PX_PER_SEC = 20;
 
 // Maximum Q&A scroll speed in pixels per second. Prevents uncomfortably fast
 // scrolling when answers are very long.
-const QA_MAX_SCROLL_SPEED_PX_PER_SEC = 120;
+const QA_MAX_SCROLL_SPEED_PX_PER_SEC = 75;
 
 
 // =============================================================================
