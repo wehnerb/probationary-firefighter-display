@@ -23,9 +23,11 @@ import { LAYOUTS } from './shared/layouts.js';
 //   - If Q&A content fits within the available panel height, it is static
 //   - If content overflows, a CSS keyframe animation scrolls #qa-inner upward
 //     once: pause at top → scroll → pause at bottom
-//   - ResizeObserver fires once as a layout-ready signal then disconnects
-//   - Three requestAnimationFrame calls defer measurement until layout is fully
-//     settled; both readings must exceed 20 px before scrolling triggers
+//   - window.load is used as the scroll trigger (not document.fonts.ready) so
+//     the /photo/{fileId} proxy image is fully loaded before layout is measured
+//   - One requestAnimationFrame after load, then three more defer measurement
+//     until layout is fully settled; both readings must exceed QA_SCROLL_THRESHOLD_PX
+//     before scrolling triggers
 //   - Speed is clamped between QA_MIN and QA_MAX scroll speed constants
 //
 // Data sources:
@@ -95,7 +97,7 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
@@ -905,27 +907,23 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '    var outer = document.querySelector(".qa-section");' +
     '    var inner = document.getElementById("qa-inner");' +
     '    if (!outer || !inner) return;' +
-    '    var observer = new ResizeObserver(function() {' +
-    '      observer.disconnect();' +
+    '    requestAnimationFrame(function() {' +
     '      requestAnimationFrame(function() {' +
+    '        if (outer.clientHeight < 50) return;' +
+    '        var overflow1 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '        if (overflow1 <= THRESHOLD) return;' +
     '        requestAnimationFrame(function() {' +
-    '          if (outer.clientHeight < 50) return;' +
-    '          var overflow1 = inner.getBoundingClientRect().height - outer.clientHeight;' +
-    '          if (overflow1 <= THRESHOLD) return;' +
-    '          requestAnimationFrame(function() {' +
-    '            var overflow2 = inner.getBoundingClientRect().height - outer.clientHeight;' +
-    '            if (overflow2 <= THRESHOLD) return;' +
-    '            applyScroll(inner, overflow2);' +
-    '          });' +
+    '          var overflow2 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '          if (overflow2 <= THRESHOLD) return;' +
+    '          applyScroll(inner, overflow2);' +
     '        });' +
     '      });' +
     '    });' +
-    '    observer.observe(inner);' +
     '  }' +
-    '  if (document.fonts) {' +
-    '    document.fonts.ready.then(startLogic);' +
+    '  if (document.readyState === "complete") {' +
+    '    requestAnimationFrame(startLogic);' +
     '  } else {' +
-    '    window.addEventListener("load", startLogic);' +
+    '    window.addEventListener("load", function () { requestAnimationFrame(startLogic); });' +
     '  }' +
     '}());' +
     '</script>' +
