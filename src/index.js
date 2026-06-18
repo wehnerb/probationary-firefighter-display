@@ -97,7 +97,7 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 6;
+const CACHE_VERSION = 7;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
@@ -116,6 +116,13 @@ const QA_SCROLL_DURATION_SECONDS = 60;
 
 // Seconds to pause at the top and bottom of the Q&A scroll.
 const QA_SCROLL_PAUSE_SECONDS = 12;
+
+// Milliseconds to wait after window.load fires before measuring Q&A overflow.
+// On Pi hardware, flex layout for .qa-section is not fully settled immediately
+// after window.load even with requestAnimationFrame deferral. This delay gives
+// the rendering engine time to compute the correct clientHeight before the
+// overflow measurement runs. Invisible to viewers given the page display duration.
+const QA_SCROLL_DELAY_MS = 500;
 
 // Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
 // scrolling when content only slightly overflows the available space.
@@ -890,6 +897,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  var MIN_SPEED = ' + QA_MIN_SCROLL_SPEED_PX_PER_SEC + ';' +
     '  var MAX_SPEED = ' + QA_MAX_SCROLL_SPEED_PX_PER_SEC + ';' +
     '  var THRESHOLD = ' + QA_SCROLL_THRESHOLD_PX          + ';' +
+    '  var DELAY     = ' + QA_SCROLL_DELAY_MS              + ';' +
     '  function applyScroll(inner, overflow) {' +
     '    var availableTime = Math.max(1, DURATION - (2 * PAUSE));' +
     '    var speed         = Math.min(MAX_SPEED, Math.max(MIN_SPEED, overflow / availableTime));' +
@@ -920,10 +928,13 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '      });' +
     '    });' +
     '  }' +
+    '  function delayedStart() {' +
+    '    setTimeout(function () { requestAnimationFrame(startLogic); }, DELAY);' +
+    '  }' +
     '  if (document.readyState === "complete") {' +
-    '    requestAnimationFrame(startLogic);' +
+    '    delayedStart();' +
     '  } else {' +
-    '    window.addEventListener("load", function () { requestAnimationFrame(startLogic); });' +
+    '    window.addEventListener("load", delayedStart);' +
     '  }' +
     '}());' +
     '</script>' +
