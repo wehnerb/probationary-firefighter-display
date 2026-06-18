@@ -122,7 +122,7 @@ const QA_SCROLL_PAUSE_SECONDS = 12;
 // after window.load even with requestAnimationFrame deferral. This delay gives
 // the rendering engine time to compute the correct clientHeight before the
 // overflow measurement runs. Invisible to viewers given the page display duration.
-const QA_SCROLL_DELAY_MS = 500;
+const QA_SCROLL_DELAY_MS = 1000;
 
 // Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
 // scrolling when content only slightly overflows the available space.
