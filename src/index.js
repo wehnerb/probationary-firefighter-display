@@ -25,9 +25,13 @@ import { LAYOUTS } from './shared/layouts.js';
 //     once: pause at top → scroll → pause at bottom
 //   - window.load is used as the scroll trigger (not document.fonts.ready) so
 //     the /photo/{fileId} proxy image is fully loaded before layout is measured
+//   - Overflow is detected via outer.scrollHeight - outer.clientHeight (same
+//     element, integer values, reliable across Chromium versions on Pi hardware)
+//     rather than comparing getBoundingClientRect heights across two elements
+//   - QA_SCROLL_THRESHOLD_PX is 0: any positive integer overflow triggers scroll
 //   - One requestAnimationFrame after load, then three more defer measurement
-//     until layout is fully settled; both readings must exceed QA_SCROLL_THRESHOLD_PX
-//     before scrolling triggers
+//     until layout is fully settled; both readings must be positive before
+//     scrolling triggers
 //   - Speed is clamped between QA_MIN and QA_MAX scroll speed constants
 //
 // Data sources:
@@ -97,17 +101,18 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
 
-// Minimum overflow in pixels that triggers the Q&A scroll animation. Filters
-// out sub-pixel rendering noise while still catching genuine partial-line
-// overflow (e.g. a half-visible last line). Sub-pixel noise after triple rAF
-// deferral and document.fonts.ready is typically < 2 px, so 5 is safe.
-const QA_SCROLL_THRESHOLD_PX = 5;
+// Minimum overflow in pixels that triggers the Q&A scroll animation.
+// Set to 0: scrollHeight and clientHeight are both integers, so any value
+// of 1 or more represents genuine hidden content. A threshold above 0 risks
+// filtering out real overflow that appears visually significant on Pi hardware
+// even when measured as only a few logical pixels.
+const QA_SCROLL_THRESHOLD_PX = 0;
 
 // Total seconds budgeted for one complete Q&A scroll cycle (pause top → scroll
 // → pause bottom). Controls scroll speed calculation — a longer value produces
@@ -116,13 +121,6 @@ const QA_SCROLL_DURATION_SECONDS = 60;
 
 // Seconds to pause at the top and bottom of the Q&A scroll.
 const QA_SCROLL_PAUSE_SECONDS = 12;
-
-// Milliseconds to wait after window.load fires before measuring Q&A overflow.
-// On Pi hardware, flex layout for .qa-section is not fully settled immediately
-// after window.load even with requestAnimationFrame deferral. This delay gives
-// the rendering engine time to compute the correct clientHeight before the
-// overflow measurement runs. Invisible to viewers given the page display duration.
-const QA_SCROLL_DELAY_MS = 1000;
 
 // Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow
 // scrolling when content only slightly overflows the available space.
@@ -897,7 +895,6 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  var MIN_SPEED = ' + QA_MIN_SCROLL_SPEED_PX_PER_SEC + ';' +
     '  var MAX_SPEED = ' + QA_MAX_SCROLL_SPEED_PX_PER_SEC + ';' +
     '  var THRESHOLD = ' + QA_SCROLL_THRESHOLD_PX          + ';' +
-    '  var DELAY     = ' + QA_SCROLL_DELAY_MS              + ';' +
     '  function applyScroll(inner, overflow) {' +
     '    var availableTime = Math.max(1, DURATION - (2 * PAUSE));' +
     '    var speed         = Math.min(MAX_SPEED, Math.max(MIN_SPEED, overflow / availableTime));' +
@@ -918,23 +915,20 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '    requestAnimationFrame(function() {' +
     '      requestAnimationFrame(function() {' +
     '        if (outer.clientHeight < 50) return;' +
-    '        var overflow1 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '        var overflow1 = outer.scrollHeight - outer.clientHeight;' +
     '        if (overflow1 <= THRESHOLD) return;' +
     '        requestAnimationFrame(function() {' +
-    '          var overflow2 = inner.getBoundingClientRect().height - outer.clientHeight;' +
+    '          var overflow2 = outer.scrollHeight - outer.clientHeight;' +
     '          if (overflow2 <= THRESHOLD) return;' +
     '          applyScroll(inner, overflow2);' +
     '        });' +
     '      });' +
     '    });' +
     '  }' +
-    '  function delayedStart() {' +
-    '    setTimeout(function () { requestAnimationFrame(startLogic); }, DELAY);' +
-    '  }' +
     '  if (document.readyState === "complete") {' +
-    '    delayedStart();' +
+    '    requestAnimationFrame(startLogic);' +
     '  } else {' +
-    '    window.addEventListener("load", delayedStart);' +
+    '    window.addEventListener("load", function () { requestAnimationFrame(startLogic); });' +
     '  }' +
     '}());' +
     '</script>' +
