@@ -95,11 +95,17 @@ const SHEET_TAB_NAME = 'Firefighters';
 const ERROR_RETRY_SECONDS = 60;
 
 // Cache version — increment this value to bust any caches keyed on this Worker.
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 
 // Minimum meta-refresh interval in seconds. Prevents the refresh from becoming
 // unreasonably short if the Worker runs just before 7:30 AM.
 const MIN_REFRESH_SECONDS = 300;
+
+// Minimum overflow in pixels that triggers the Q&A scroll animation. Filters
+// out sub-pixel rendering noise while still catching genuine partial-line
+// overflow (e.g. a half-visible last line). Sub-pixel noise after triple rAF
+// deferral and document.fonts.ready is typically < 2 px, so 5 is safe.
+const QA_SCROLL_THRESHOLD_PX = 5;
 
 // Total seconds budgeted for one complete Q&A scroll cycle (pause top → scroll
 // → pause bottom). Controls scroll speed calculation — a longer value produces
@@ -881,7 +887,7 @@ function buildFirefighterPage(firefighter, photoFileId, layout, layoutKey, refre
     '  var PAUSE     = ' + QA_SCROLL_PAUSE_SECONDS        + ';' +
     '  var MIN_SPEED = ' + QA_MIN_SCROLL_SPEED_PX_PER_SEC + ';' +
     '  var MAX_SPEED = ' + QA_MAX_SCROLL_SPEED_PX_PER_SEC + ';' +
-    '  var THRESHOLD = 20;' +
+    '  var THRESHOLD = ' + QA_SCROLL_THRESHOLD_PX          + ';' +
     '  function applyScroll(inner, overflow) {' +
     '    var availableTime = Math.max(1, DURATION - (2 * PAUSE));' +
     '    var speed         = Math.min(MAX_SPEED, Math.max(MIN_SPEED, overflow / availableTime));' +
