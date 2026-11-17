@@ -9,10 +9,6 @@
 // These values define the FFD station display design language.
 // A change here propagates to all workers on next sync.
 //
-// Note: DARK_BG_COLOR is also exported from constants.js for
-// backward compatibility. Once all workers import from colors.js,
-// constants.js will be retired.
-//
 // Usage:
 //   import {
 //     DARK_BG_COLOR,
@@ -34,7 +30,6 @@
 // Background color applied when ?bg=dark is set on any display Worker.
 // Used for browser-based testing against a solid dark background.
 // Matches the Raspberry Pi display hardware's charcoal texture approximation.
-// Also exported from constants.js for backward compatibility.
 export const DARK_BG_COLOR = '#111111';
 
 // Typography
